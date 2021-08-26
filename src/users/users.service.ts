@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ParseIntPipe } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { catchError, from, map, Observable, switchMap, throwError } from 'rxjs';
 import { Repository } from 'typeorm';
@@ -21,6 +21,10 @@ export class UsersService {
         }
     }
 
+    async findOne(id: number) {
+        return await this.usersRepository.findOne(id);
+    }
+
     findOneByEmail(email: string) {
         return this.usersRepository.findOne( { where: {email: email } });
     }
@@ -33,13 +37,13 @@ export class UsersService {
     hashPassword(password: string): Observable <string> {
         return bcrypt.hash(password, 12);
     }
-    // findAll(): Promise<User[]> {
-    //     return this.usersRepository.find();
-    //   }
+    findAll(): Promise<User[]> {
+        return this.usersRepository.find();
+    }
       
-    // async remove(id: string): Promise<void> {
-    //     await this.usersRepository.delete(id);
-    //   }
+    async remove(id: number): Promise<void> {
+        await this.usersRepository.delete(id);
+    }
 
     create(user: User): Observable<User> {
         return this.hashPassword(user.password).pipe(
