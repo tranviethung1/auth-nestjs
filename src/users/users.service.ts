@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { from, Observable } from 'rxjs';
+import { catchError, from, map, Observable, switchMap, throwError } from 'rxjs';
 import { Repository } from 'typeorm';
 import { UserEntity } from './entities/user.entity';
 const bcrypt = require('bcrypt');
@@ -13,13 +13,25 @@ export class UsersService {
         @InjectRepository(UserEntity)
         private usersRepository: Repository<User>,
     ) {}
-    async findOne(email: string): Promise<UserEntity | undefined> {
-         return this.usersRepository.findOne( { where: {email: email } });
-        // return this.users.find(user => user.username === username);
+    async login(email : string, password : string): Promise<UserEntity | undefined> {
+        const users = await this.findOneByEmail(email);
+        if (users) {
+            const isMatch  = await bcrypt.compare(password, users.password);
+            if (isMatch) return users
+        }
+    }
+
+    findOneByEmail(email: string) {
+        return this.usersRepository.findOne( { where: {email: email } });
+    }
+
+
+    comparePasswords(newPassword: string, passwortHash: string): Observable<any>{
+        return from(bcrypt.compare(newPassword, passwortHash));
     }
 
     hashPassword(password: string): Observable <string> {
-        return from<string>(bcrypt.hash(password, 12));
+        return bcrypt.hash(password, 12);
     }
     // findAll(): Promise<User[]> {
     //     return this.usersRepository.find();
@@ -29,25 +41,23 @@ export class UsersService {
     //     await this.usersRepository.delete(id);
     //   }
 
-    // create(user: User): Observable<User> {
-    //     return this.authService.hashPassword(user.password).pipe(
-    //         switchMap((passwordHash: string) => {
-    //             const newUser = new UserEntity();
-    //             newUser.name = user.name;
-    //             newUser.username = user.username;
-    //             newUser.email = user.email;
-    //             newUser.password = passwordHash;
-    //             newUser.role = UserRole.USER;
+    create(user: User): Observable<User> {
+        return this.hashPassword(user.password).pipe(
+            switchMap((passwordHash: string) => {
+                const newUser = new UserEntity();
+                newUser.username = user.username;
+                newUser.email = user.email;
+                newUser.password = passwordHash;
 
-    //             return from(this.userRepository.save(newUser)).pipe(
-    //                 map((user: User) => {
-    //                     const {password, ...result} = user;
-    //                     return result;
-    //                 }),
-    //                 catchError(err => throwError(err))
-    //             )
-    //         })
-    //     )
-    // }
+                return from(this.usersRepository.save(newUser)).pipe(
+                    map((user: User) => {
+                        const {password, ...result} = user;
+                        return result;
+                    }),
+                    catchError(err => throwError(err))
+                )
+            })
+        )
+    }
 
 }
