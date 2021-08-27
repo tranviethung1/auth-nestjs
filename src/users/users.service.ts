@@ -1,4 +1,4 @@
-import { Injectable, ParseIntPipe } from '@nestjs/common';
+import { BadRequestException, Injectable, ParseIntPipe } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { catchError, from, map, Observable, switchMap, throwError } from 'rxjs';
 import { Repository } from 'typeorm';
@@ -37,6 +37,7 @@ export class UsersService {
     hashPassword(password: string): Observable <string> {
         return bcrypt.hash(password, 12);
     }
+
     findAll(): Promise<User[]> {
         return this.usersRepository.find();
     }
@@ -45,14 +46,18 @@ export class UsersService {
         await this.usersRepository.delete(id);
     }
 
-    create(user: User): Observable<User> {
-        return this.hashPassword(user.password).pipe(
+    async create(user: User){
+        const userExist = await this.usersRepository.findOne({ email: user.email });
+        if (userExist)
+          throw new BadRequestException('User already registered with email');
+    
+        return from(this.hashPassword(user.password)).pipe(
             switchMap((passwordHash: string) => {
                 const newUser = new UserEntity();
                 newUser.username = user.username;
                 newUser.email = user.email;
                 newUser.password = passwordHash;
-
+                newUser.roles = user.roles;
                 return from(this.usersRepository.save(newUser)).pipe(
                     map((user: User) => {
                         const {password, ...result} = user;
